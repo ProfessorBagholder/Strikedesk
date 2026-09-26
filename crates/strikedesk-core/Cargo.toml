@@ -1,0 +1,13 @@
+[package]
+name = "strikedesk-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Pure Market-Wizard badge engine. No I/O, no broker, no network."
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

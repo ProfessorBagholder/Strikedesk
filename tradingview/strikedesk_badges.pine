@@ -1,0 +1,133 @@
+//@version=5
+// Strikedesk badge companion.
+// Chart-level approximation of the desk rules in strikedesk-core.
+// RS here is NOT the desk's cross-sectional 1–99 percentile. The desk ranks
+// the whole scan. This script only paints one symbol and can emit alert JSON
+// for the local webhook. It does not place orders.
+indicator("Strikedesk Badges", overlay=true, max_labels_count=40)
+
+minAdr = input.float(3.5, "Min ADR %", minval=0.1, step=0.1)
+priorNeed = input.float(30.0, "KQ prior move %", minval=1.0, step=1.0)
+coilPct = input.float(5.0, "KQ coil %", minval=0.1, step=0.1)
+minDollarM = input.float(5.0, "Min 20-bar dollar volume ($M)", minval=0.0, step=0.5)
+hotRs = input.int(80, "Hot RS proxy", minval=1, maxval=99)
+benchmark = input.symbol("AMEX:SPY", "RS benchmark")
+
+sma10 = ta.sma(close, 10)
+sma20 = ta.sma(close, 20)
+sma50 = ta.sma(close, 50)
+sma150 = ta.sma(close, 150)
+sma200 = ta.sma(close, 200)
+ema10 = ta.ema(close, 10)
+ema20 = ta.ema(close, 20)
+adr = ta.sma((high - low) / close * 100.0, 20)
+dollars = ta.sma(close * volume, 20)
+priorLow = ta.lowest(low[10], 63)
+priorMove = priorLow > 0 ? (close / priorLow - 1.0) * 100.0 : na
+near10 = ema10 > 0 and math.abs(close / ema10 - 1.0) * 100.0 <= coilPct
+near20 = ema20 > 0 and math.abs(close / ema20 - 1.0) * 100.0 <= coilPct
+kq = close > sma50 and sma10 > sma20 and adr >= minAdr and dollars >= minDollarM * 1000000.0 and priorMove >= priorNeed and (near10 or near20) and close >= ema20
+
+hi252 = ta.highest(high, 252)
+lo252 = ta.lowest(low, 252)
+mm = close > sma50 and close > sma150 and close > sma200 and sma50 > sma150 and sma50 > sma200 and sma150 > sma200 and sma200 > sma200[21] and close >= lo252 * 1.30 and close >= hi252 * 0.75
+
+span = high - low
+closePos = span > 0 ? (close - low) / span : 1.0
+c97 = closePos >= 0.97
+onHigh = close >= ta.highest(high, 10) * 0.98 and closePos >= 0.50
+barsSinceHigh = ta.barssince(high == ta.highest(high, 252))
+week52 = bar_index >= 100 and not na(barsSinceHigh) and barsSinceHigh < 10
+
+boxHigh = ta.highest(high, 10)
+boxLow = ta.lowest(low, 10)
+boxRange = close > 0 ? (boxHigh - boxLow) / close : na
+boxPos = boxHigh > boxLow ? (close - boxLow) / (boxHigh - boxLow) : 1.0
+dry = ta.sma(volume, 5) <= ta.sma(volume[5], 15) * 0.85
+db = boxRange <= 0.12 and boxPos >= 0.70 and dry and close > sma20
+
+ret4 = close[4] > 0 ? close / close[4] - 1.0 : na
+expanded = volume >= ta.sma(volume[4], 20) * 1.5 or (high - low) / close >= ta.sma((high - low) / close, 20)[4] * 1.2
+sb4 = ret4 >= 0.04 and close > sma10 and expanded
+
+flagRange = close > 0 ? (ta.highest(high, 9) - ta.lowest(low, 9)) / close : na
+flagPrior = close[24] > 0 ? close[9] / close[24] - 1.0 : na
+sb9 = flagRange <= 0.08 and flagPrior >= 0.15 and close >= close[8] * 0.98 and close > sma20
+
+tagged = ta.lowest(low, 3) <= ema10 * 1.01
+tml = ema10 > ema10[5] and ema10 > ema20 and close >= ema10 and close <= ema10 * 1.03 and tagged
+
+// Trading weeks: non-overlapping 5-bar blocks are awkward in Pine.
+// This uses a 10-week SMA of weekly closes via request.security.
+weeklyClose = request.security(syminfo.tickerid, "W", close, barmerge.gaps_off, barmerge.lookahead_off)
+weeklyHigh = request.security(syminfo.tickerid, "W", high, barmerge.gaps_off, barmerge.lookahead_off)
+weeklySma = ta.sma(weeklyClose, 10)
+weeklyDist = weeklySma > 0 ? close / weeklySma - 1.0 : na
+sbw = weeklyDist >= 0 and weeklyDist <= 0.06 and weeklySma > weeklySma[4] and (ta.highest(weeklyHigh, 26) - close) / ta.highest(weeklyHigh, 26) <= 0.15
+
+baseAdr = ta.sma((high - low) / close, 20)
+baseVol = ta.sma(volume, 20)
+gapUp = close[1] > 0 and open / close[1] - 1.0 >= 0.04
+wide = baseAdr > 0 and (high - low) / close >= 2.0 * baseAdr
+reaction = volume >= baseVol * 2.0 and close > close[1] and (gapUp or wide)
+erAgo = ta.barssince(reaction)
+er = not na(erAgo) and erAgo <= 15 and bar_index > 40
+
+advance = sma150 > 0 ? close / sma150 - 1.0 : na
+stage2 = close > sma150 and sma150 > sma150[21]
+stage = stage2 and advance < 0.15 ? "2A" : stage2 and advance < 0.40 ? "2B" : stage2 ? "2C" : "—"
+
+bench = request.security(benchmark, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+stock63 = close[63] > 0 ? close / close[63] - 1.0 : na
+bench63 = bench[63] > 0 ? bench / bench[63] - 1.0 : na
+excess = stock63 - bench63
+rsProxy = na(excess) ? 50 : math.round(math.max(1, math.min(99, 50 + excess * 100)))
+rsHot = rsProxy >= hotRs
+
+plot(sma10, "SMA 10", color.new(color.teal, 20))
+plot(sma20, "SMA 20", color.new(color.orange, 20))
+plot(sma50, "SMA 50", color.new(color.yellow, 0))
+
+var table panel = table.new(position.top_right, 2, 14, bgcolor=color.new(#0c1322, 0), border_width=1, border_color=color.new(color.white, 80))
+if barstate.islast
+    table.cell(panel, 0, 0, "Strikedesk", text_color=color.black, bgcolor=#ffe14a, text_size=size.small)
+    table.cell(panel, 1, 0, syminfo.ticker, text_color=color.black, bgcolor=#ffe14a, text_size=size.small)
+    table.cell(panel, 0, 1, "KQ", text_color=kq ? #f0c14a : color.gray, text_size=size.small)
+    table.cell(panel, 1, 1, kq ? "pass" : "—", text_color=kq ? #f0c14a : color.gray, text_size=size.small)
+    table.cell(panel, 0, 2, "MM", text_color=mm ? #f0c14a : color.gray, text_size=size.small)
+    table.cell(panel, 1, 2, mm ? "pass" : "—", text_color=mm ? #f0c14a : color.gray, text_size=size.small)
+    table.cell(panel, 0, 3, "ON", text_color=onHigh ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 1, 3, onHigh ? "pass" : "—", text_color=onHigh ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 0, 4, "DB", text_color=db ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 1, 4, db ? "pass" : "—", text_color=db ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 0, 5, "SB4", text_color=sb4 ? #fb923c : color.gray, text_size=size.small)
+    table.cell(panel, 1, 5, sb4 ? "pass" : "—", text_color=sb4 ? #fb923c : color.gray, text_size=size.small)
+    table.cell(panel, 0, 6, "SBW", text_color=sbw ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 1, 6, sbw ? "pass" : "—", text_color=sbw ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 0, 7, "SB9", text_color=sb9 ? #fb923c : color.gray, text_size=size.small)
+    table.cell(panel, 1, 7, sb9 ? "pass" : "—", text_color=sb9 ? #fb923c : color.gray, text_size=size.small)
+    table.cell(panel, 0, 8, "TML", text_color=tml ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 1, 8, tml ? "pass" : "—", text_color=tml ? #3ee0d0 : color.gray, text_size=size.small)
+    table.cell(panel, 0, 9, "97C", text_color=c97 ? #c084fc : color.gray, text_size=size.small)
+    table.cell(panel, 1, 9, c97 ? "pass" : "—", text_color=c97 ? #c084fc : color.gray, text_size=size.small)
+    table.cell(panel, 0, 10, "52W", text_color=week52 ? #f0c14a : color.gray, text_size=size.small)
+    table.cell(panel, 1, 10, week52 ? "pass" : "—", text_color=week52 ? #f0c14a : color.gray, text_size=size.small)
+    table.cell(panel, 0, 11, "ER", text_color=er ? #f472b6 : color.gray, text_size=size.small)
+    table.cell(panel, 1, 11, er ? "ER-" + str.tostring(erAgo) : "—", text_color=er ? #f472b6 : color.gray, text_size=size.small)
+    table.cell(panel, 0, 12, stage, text_color=stage2 ? #34d399 : color.gray, text_size=size.small)
+    table.cell(panel, 1, 12, "RS " + str.tostring(rsProxy), text_color=rsHot ? #34d399 : color.gray, text_size=size.small)
+    table.cell(panel, 0, 13, "Note", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 13, "Not an order", text_color=color.gray, text_size=size.tiny)
+
+payload(badge) =>
+    '{"symbol":"' + syminfo.ticker + '","badge":"' + badge + '","price":' + str.tostring(close, "#.##") + ',"time":"' + str.format_time(time, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC") + '","message":"Strikedesk alert. Not an order."}'
+
+alertcondition(kq, "KQ", "KQ")
+alertcondition(mm, "MM", "MM")
+alertcondition(db, "DB", "DB")
+alertcondition(sb4, "SB4", "SB4")
+alertcondition(er, "ER", "ER")
+if kq and barstate.isconfirmed
+    alert(payload("KQ"), alert.freq_once_per_bar_close)
+if er and erAgo == 0 and barstate.isconfirmed
+    alert(payload("ER-0"), alert.freq_once_per_bar_close)
