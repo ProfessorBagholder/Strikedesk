@@ -1,0 +1,52 @@
+# Strikedesk screener. Badge numbers live in strikedesk-core::BadgeParams.
+# Omit [badges] to keep the documented defaults. Add a [badges] table only
+# when you want to override a knob; missing keys inside it still fall back
+# to those defaults.
+
+[server]
+host = "127.0.0.1"
+port = 8790
+
+[data]
+source = "fixtures"
+fixtures_path = "fixtures/universe.toml"
+cache_dir = "data/cache"
+cache_ttl_hours = 12
+benchmark = "SPY"
+yahoo_base = "https://query1.finance.yahoo.com"
+alerts_path = "data/alerts.jsonl"
+
+# Leave empty to rank every fixture except the benchmark.
+# Yahoo mode uses this list when it is non-empty, otherwise the fixture symbols.
+[universe]
+symbols = []
+
+[[presets]]
+id = "qullamaggie"
+name = "Qullamaggie"
+require = []
+min_strike = 0
+
+[[presets]]
+id = "kq"
+name = "KQ coil"
+require = ["KQ"]
+min_strike = 0
+
+[[presets]]
+id = "leaders"
+name = "Hot RS"
+require = ["RS"]
+min_strike = 60
+
+[[presets]]
+id = "episodic"
+name = "Episodic"
+require = ["ER"]
+min_strike = 0
+
+[[presets]]
+id = "bases"
+name = "Dry bases"
+require = ["DB"]
+min_strike = 0

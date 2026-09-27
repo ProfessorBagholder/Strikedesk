@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/strikedesk-core",
+    "crates/strikedesk-data",
+    "crates/strikedesk-screener",
+    "crates/strikedesk-api",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "io-util", "time"] }
+axum = "0.7"
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+toml = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-trait = "0.1"
+strikedesk-core = { path = "crates/strikedesk-core" }
+strikedesk-data = { path = "crates/strikedesk-data" }
+strikedesk-screener = { path = "crates/strikedesk-screener" }
