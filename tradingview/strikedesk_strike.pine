@@ -72,6 +72,17 @@ float emaDock = na(chasePivot) ? math.min(16.0, math.max(0.0, emaExt - 0.05) / 0
 sma20 = ta.sma(close, 20)
 ret21 = close[21] > 0 ? close / close[21] - 1.0 : 0.0
 smaExt = sma20 > 0 ? close / sma20 - 1.0 : 0.0
+// Post-thrust coil on EMA(10) and SMA(20). Waives distance, age, ATR, and EMA.
+// The parabolic term below is not waived. EMA(10) stands in for a 9-period EMA.
+coilRange = close > 0 ? (ta.highest(high, 15) - ta.lowest(low, 15)) / close : 1.0
+emaBand = ema10 > 0 ? math.abs(close / ema10 - 1.0) : 1.0
+thrust = close[25] > 0 ? close / close[25] - 1.0 : 0.0
+bool pause = coilRange <= 0.10 and emaBand <= 0.04 and smaExt <= 0.05 and smaExt >= -0.03 and thrust >= 0.15
+if pause
+    distDock := 0.0
+    ageDock := 0.0
+    atrDock := 0.0
+    emaDock := 0.0
 paraDock = smaExt > 0.06 and ret21 > 0.18 ? math.min(20.0, (smaExt - 0.06) / 0.04 * 8.0) : 0.0
 float chaseDock = math.min(50.0, distDock + ageDock + atrDock + emaDock + paraDock)
 strike = math.round(math.max(0.0, math.min(100.0, maPts + rsPts + locPts + tightPts + closePts + adrPts + liqPts - chaseDock)))

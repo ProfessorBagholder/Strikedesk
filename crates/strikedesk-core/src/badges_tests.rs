@@ -353,6 +353,103 @@ fn fresh_pivot_outranks_a_parabolic_extension() {
     );
 }
 
+fn stair_step(break_daily: Option<f64>) -> Vec<Bar> {
+    let mut path = Path::new(40.0);
+    path.add(200, 0.0012, 0.028, 0.6, 2_000_000.0, None)
+        .add(12, 0.0, 0.03, 0.5, 1_400_000.0, None)
+        .add(8, 0.028, 0.035, 0.8, 3_000_000.0, None)
+        .add(18, 0.0, 0.025, 0.55, 1_600_000.0, None);
+    if let Some(daily) = break_daily {
+        path.add(1, daily, 0.028, 0.9, 2_800_000.0, None);
+    }
+    path.done().to_vec()
+}
+
+#[test]
+fn coiled_post_thrust_base_outranks_late_chases() {
+    let coil = run(&stair_step(None), 92);
+    let early = run(&stair_step(Some(0.02)), 92);
+    let thin = run(
+        &shelf_then(&[
+            (4, 0.045, 0.04, 0.85, 2_800_000.0),
+            (9, 0.0, 0.02, 0.92, 1_600_000.0),
+        ]),
+        92,
+    );
+    let mut parabolic = Path::new(60.0);
+    parabolic
+        .add(160, 0.0004, 0.018, 0.55, 8_000_000.0, None)
+        .add(12, 0.0, 0.025, 0.5, 6_000_000.0, None)
+        .add(26, 0.012, 0.032, 0.74, 9_000_000.0, None);
+    let chase = run(parabolic.done(), 92);
+
+    let coil_sma = coil.last / coil.metrics.sma20.expect("sma20") - 1.0;
+    let coil_ema = (coil.last / coil.metrics.ema10.expect("ema10") - 1.0).abs();
+    assert!(
+        (-0.03..=0.05).contains(&coil_sma),
+        "coil should sit on SMA(20), got {coil_sma}"
+    );
+    assert!(
+        coil_ema <= 0.04,
+        "coil should sit on EMA(10), got {coil_ema}"
+    );
+    assert!(
+        coil.metrics.pivot_extension.unwrap_or(0.0) > 0.12,
+        "the launch shelf should still be the pivot, got {:?}",
+        coil.metrics.pivot_extension
+    );
+    assert!(
+        coil.metrics.bars_since_breakout.unwrap_or(0) >= 15,
+        "the coil is weeks after the thrust, got {:?}",
+        coil.metrics.bars_since_breakout
+    );
+    let coil_dock = part_points(&coil, "chase");
+    assert!(
+        coil_dock > -1.0,
+        "a pause on the short averages is not a chase ({coil_dock})"
+    );
+
+    assert!(
+        early.metrics.bars_since_breakout.unwrap_or(99) <= 2,
+        "early break should be the print, got {:?}",
+        early.metrics.bars_since_breakout
+    );
+    assert!(
+        early.metrics.pivot_extension.unwrap_or(1.0) < 0.05,
+        "early break should still be at the coil high, got {:?}",
+        early.metrics.pivot_extension
+    );
+    let early_sma = early.last / early.metrics.sma20.expect("sma20") - 1.0;
+    assert!(
+        early_sma <= 0.05,
+        "early break should not have left SMA(20), got {early_sma}"
+    );
+    let early_dock = part_points(&early, "chase");
+    assert!(
+        early_dock > -1.0,
+        "the first push off the coil is not a chase ({early_dock})"
+    );
+
+    let thin_dock = part_points(&thin, "chase");
+    let chase_dock = part_points(&chase, "chase");
+    assert!(thin_dock <= -15.0, "thin runaway dock {thin_dock}");
+    assert!(chase_dock <= -20.0, "parabolic dock {chase_dock}");
+    assert!(
+        coil.strike >= thin.strike + 10 && coil.strike >= chase.strike + 10,
+        "coil {} thin {} ({thin_dock}) parabolic {} ({chase_dock})",
+        coil.strike,
+        thin.strike,
+        chase.strike
+    );
+    assert!(
+        early.strike >= thin.strike + 10 && early.strike >= chase.strike + 10,
+        "early {} thin {} parabolic {}",
+        early.strike,
+        thin.strike,
+        chase.strike
+    );
+}
+
 fn part_points(eval: &Evaluation, id: &str) -> f64 {
     eval.strike_parts
         .iter()

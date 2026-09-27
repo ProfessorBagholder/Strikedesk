@@ -24,6 +24,13 @@ market_cap = 160000000000
 recipe = "fresh_pivot"
 
 [[symbols]]
+symbol = "AVGO"
+name = "AVGO"
+exchange = "NASDAQ"
+market_cap = 780000000000
+recipe = "stair_step"
+
+[[symbols]]
 symbol = "COHR"
 name = "COHR"
 exchange = "NYSE"

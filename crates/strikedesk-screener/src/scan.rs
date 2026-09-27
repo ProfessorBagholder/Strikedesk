@@ -469,6 +469,28 @@ mod tests {
             "SWKS rank {swks_rank} strike {} is still near the top\n{dump}",
             swks.strike
         );
+        let avgo = report
+            .rows
+            .iter()
+            .find(|row| row.symbol == "AVGO")
+            .expect("AVGO");
+        let avgo_dock = avgo
+            .strike_parts
+            .iter()
+            .find(|part| part.id == "chase")
+            .map(|part| part.points)
+            .unwrap_or(0.0);
+        assert!(
+            avgo_dock > -8.0,
+            "stair-step coil AVGO should not be docked as a chase ({avgo_dock})\n{dump}"
+        );
+        assert!(
+            avgo.strike > qmco.strike && avgo.strike > swks.strike,
+            "coiled AVGO ({}) must outrank QMCO ({}) and SWKS ({})\n{dump}",
+            avgo.strike,
+            qmco.strike,
+            swks.strike
+        );
         for code in [
             "KQ", "MM", "ON", "DB", "SB4", "SBW", "SB9", "TML", "97C", "52W", "ER", "2A", "2B",
             "2C", "RS",

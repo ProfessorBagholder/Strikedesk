@@ -154,6 +154,42 @@ fn synthesize(recipe: &str, drift: Option<f64>) -> Result<Vec<Bar>, DataError> {
                 gap: None,
             },
         ],
+        // Thrust, then a multi-week pause on the short averages. Equity stand-in
+        // for that stair-step shape. The coil has not left SMA(20).
+        "stair_step" => vec![
+            Seg {
+                len: 200,
+                daily: 0.0012,
+                range: 0.028,
+                pos: 0.6,
+                vol: 2_000_000.0,
+                gap: None,
+            },
+            Seg {
+                len: 12,
+                daily: 0.0,
+                range: 0.03,
+                pos: 0.5,
+                vol: 1_400_000.0,
+                gap: None,
+            },
+            Seg {
+                len: 8,
+                daily: 0.028,
+                range: 0.035,
+                pos: 0.8,
+                vol: 3_000_000.0,
+                gap: None,
+            },
+            Seg {
+                len: 18,
+                daily: 0.0,
+                range: 0.025,
+                pos: 0.55,
+                vol: 1_600_000.0,
+                gap: None,
+            },
+        ],
         // Larger-float parabola: a liquid shelf, then a month-long climb that
         // rides the short average and finishes stretched above SMA(20).
         "parabolic" => vec![

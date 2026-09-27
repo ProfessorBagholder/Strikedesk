@@ -892,7 +892,11 @@ fn chase_penalty(prepared: &Prepared, params: &BadgeParams) -> (f64, Option<Pivo
         breakout.bars_since <= params.chase_fresh_bars
             && breakout.extension <= params.chase_max_extension + params.chase_fresh_pad
     });
-    let atr_dock = if near_fresh {
+    // Stair-step pause: thrust, then a multi-week coil on EMA(10) and SMA(20).
+    // That is the pre-explosion base, so the old shelf's distance and age do
+    // not count as a chase. A close still stretched above SMA(20) is not a pause.
+    let pause = in_pause_zone(prepared, params);
+    let atr_dock = if near_fresh || pause {
         0.0
     } else {
         stepped(
@@ -902,7 +906,9 @@ fn chase_penalty(prepared: &Prepared, params: &BadgeParams) -> (f64, Option<Pivo
             params.chase_atr_cap,
         )
     };
-    let (dist_dock, age_dock, ema_dock) = if let Some(breakout) = &pivot {
+    let (dist_dock, age_dock, ema_dock) = if pause {
+        (0.0, 0.0, 0.0)
+    } else if let Some(breakout) = &pivot {
         let dist_dock = stepped(
             (breakout.extension - params.chase_max_extension).max(0.0),
             params.chase_dist_step,
@@ -936,6 +942,40 @@ fn chase_penalty(prepared: &Prepared, params: &BadgeParams) -> (f64, Option<Pivo
     let dock = (dist_dock + atr_dock + age_dock + ema_dock + parabolic)
         .clamp(0.0, params.chase_dock_cap.max(0.0));
     (dock, pivot)
+}
+
+/// Thrust, then a tight pause sitting on EMA(10) and SMA(20).
+///
+/// The launch shelf can be well below this pause. Distance, age, ATR, and the
+/// EMA fallback are waived here. The parabolic dock is not: a close still
+/// stretched above SMA(20) is a chase. EMA(10) stands in for a 9-period EMA.
+fn in_pause_zone(prepared: &Prepared, params: &BadgeParams) -> bool {
+    let bars = params.coil_bars;
+    let thrust = params.coil_thrust_bars;
+    if bars == 0 || thrust == 0 {
+        return false;
+    }
+    let Some(range) = box_range(&prepared.bars, bars) else {
+        return false;
+    };
+    if range > params.coil_max_range {
+        return false;
+    }
+    let Some(ema) = series_last(&prepared.ema10).filter(|ema| *ema > 0.0) else {
+        return false;
+    };
+    if (prepared.last / ema - 1.0).abs() > params.coil_ema_band {
+        return false;
+    }
+    let Some(sma) = series_last(&prepared.sma20).filter(|sma| *sma > 0.0) else {
+        return false;
+    };
+    let sma_ext = prepared.last / sma - 1.0;
+    if sma_ext > params.coil_sma_max || sma_ext < params.coil_sma_floor {
+        return false;
+    }
+    let look = bars.saturating_add(thrust);
+    window_return(&prepared.bars, look).is_some_and(|advance| advance >= params.coil_thrust_return)
 }
 
 fn parabolic_dock(prepared: &Prepared, params: &BadgeParams) -> f64 {

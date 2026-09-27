@@ -501,6 +501,27 @@ fn d_chase_sma_points() -> f64 {
 fn d_chase_sma_cap() -> f64 {
     20.0
 }
+fn d_coil_bars() -> usize {
+    15
+}
+fn d_coil_max_range() -> f64 {
+    0.10
+}
+fn d_coil_ema_band() -> f64 {
+    0.04
+}
+fn d_coil_sma_max() -> f64 {
+    0.05
+}
+fn d_coil_sma_floor() -> f64 {
+    -0.03
+}
+fn d_coil_thrust_bars() -> usize {
+    10
+}
+fn d_coil_thrust_return() -> f64 {
+    0.15
+}
 fn d_sbw_max_above() -> f64 {
     0.06
 }
@@ -651,6 +672,24 @@ pub struct BadgeParams {
     pub chase_sma_points: f64,
     #[serde(default = "d_chase_sma_cap")]
     pub chase_sma_cap: f64,
+    /// Sessions that must stay tight for a post-thrust pause.
+    #[serde(default = "d_coil_bars")]
+    pub coil_bars: usize,
+    #[serde(default = "d_coil_max_range")]
+    pub coil_max_range: f64,
+    /// Absolute distance to EMA(10) allowed inside the pause.
+    #[serde(default = "d_coil_ema_band")]
+    pub coil_ema_band: f64,
+    /// Close may sit this far above SMA(20) and still be the pause, not a chase.
+    #[serde(default = "d_coil_sma_max")]
+    pub coil_sma_max: f64,
+    #[serde(default = "d_coil_sma_floor")]
+    pub coil_sma_floor: f64,
+    #[serde(default = "d_coil_thrust_bars")]
+    pub coil_thrust_bars: usize,
+    /// Advance into the pause, measured across the coil plus this many prior sessions.
+    #[serde(default = "d_coil_thrust_return")]
+    pub coil_thrust_return: f64,
     #[serde(default)]
     pub rs: RsWeights,
     #[serde(default)]
@@ -724,6 +763,13 @@ impl Default for BadgeParams {
             chase_sma_step: d_chase_sma_step(),
             chase_sma_points: d_chase_sma_points(),
             chase_sma_cap: d_chase_sma_cap(),
+            coil_bars: d_coil_bars(),
+            coil_max_range: d_coil_max_range(),
+            coil_ema_band: d_coil_ema_band(),
+            coil_sma_max: d_coil_sma_max(),
+            coil_sma_floor: d_coil_sma_floor(),
+            coil_thrust_bars: d_coil_thrust_bars(),
+            coil_thrust_return: d_coil_thrust_return(),
             rs: RsWeights::default(),
             strike: StrikeWeights::default(),
         }
