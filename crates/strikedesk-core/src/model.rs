@@ -448,7 +448,7 @@ fn d_chase_atr_limit() -> f64 {
     1.0
 }
 fn d_chase_dock_cap() -> f64 {
-    36.0
+    50.0
 }
 fn d_chase_dist_step() -> f64 {
     0.10
@@ -482,6 +482,24 @@ fn d_chase_ema_points() -> f64 {
 }
 fn d_chase_ema_cap() -> f64 {
     16.0
+}
+fn d_chase_parabolic_window() -> usize {
+    21
+}
+fn d_chase_parabolic_return() -> f64 {
+    0.18
+}
+fn d_chase_sma_max() -> f64 {
+    0.06
+}
+fn d_chase_sma_step() -> f64 {
+    0.04
+}
+fn d_chase_sma_points() -> f64 {
+    8.0
+}
+fn d_chase_sma_cap() -> f64 {
+    20.0
 }
 fn d_sbw_max_above() -> f64 {
     0.06
@@ -618,6 +636,21 @@ pub struct BadgeParams {
     pub chase_ema_points: f64,
     #[serde(default = "d_chase_ema_cap")]
     pub chase_ema_cap: f64,
+    /// Sessions used to judge a parabolic advance.
+    #[serde(default = "d_chase_parabolic_window")]
+    pub chase_parabolic_window: usize,
+    /// Window return that, with a stretch above SMA(20), counts as parabolic.
+    #[serde(default = "d_chase_parabolic_return")]
+    pub chase_parabolic_return: f64,
+    /// Close within this fraction of SMA(20) is not a parabolic stretch.
+    #[serde(default = "d_chase_sma_max")]
+    pub chase_sma_max: f64,
+    #[serde(default = "d_chase_sma_step")]
+    pub chase_sma_step: f64,
+    #[serde(default = "d_chase_sma_points")]
+    pub chase_sma_points: f64,
+    #[serde(default = "d_chase_sma_cap")]
+    pub chase_sma_cap: f64,
     #[serde(default)]
     pub rs: RsWeights,
     #[serde(default)]
@@ -685,6 +718,12 @@ impl Default for BadgeParams {
             chase_ema_step: d_chase_ema_step(),
             chase_ema_points: d_chase_ema_points(),
             chase_ema_cap: d_chase_ema_cap(),
+            chase_parabolic_window: d_chase_parabolic_window(),
+            chase_parabolic_return: d_chase_parabolic_return(),
+            chase_sma_max: d_chase_sma_max(),
+            chase_sma_step: d_chase_sma_step(),
+            chase_sma_points: d_chase_sma_points(),
+            chase_sma_cap: d_chase_sma_cap(),
             rs: RsWeights::default(),
             strike: StrikeWeights::default(),
         }

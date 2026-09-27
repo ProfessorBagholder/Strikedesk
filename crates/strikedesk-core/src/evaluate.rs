@@ -929,9 +929,33 @@ fn chase_penalty(prepared: &Prepared, params: &BadgeParams) -> (f64, Option<Pivo
         );
         (0.0, 0.0, ema_dock)
     };
-    let dock =
-        (dist_dock + atr_dock + age_dock + ema_dock).clamp(0.0, params.chase_dock_cap.max(0.0));
+    // A parabola can ride EMA(10) and even print a tiny new high. It is still
+    // a chase when the close is stretched above SMA(20) after a large advance.
+    // That term is not waived by a fresh micro-break.
+    let parabolic = parabolic_dock(prepared, params);
+    let dock = (dist_dock + atr_dock + age_dock + ema_dock + parabolic)
+        .clamp(0.0, params.chase_dock_cap.max(0.0));
     (dock, pivot)
+}
+
+fn parabolic_dock(prepared: &Prepared, params: &BadgeParams) -> f64 {
+    let Some(sma) = series_last(&prepared.sma20) else {
+        return 0.0;
+    };
+    if sma <= 0.0 || params.chase_parabolic_window == 0 {
+        return 0.0;
+    }
+    let sma_ext = prepared.last / sma - 1.0;
+    let advance = window_return(&prepared.bars, params.chase_parabolic_window).unwrap_or(0.0);
+    if sma_ext <= params.chase_sma_max || advance <= params.chase_parabolic_return {
+        return 0.0;
+    }
+    stepped(
+        sma_ext - params.chase_sma_max,
+        params.chase_sma_step,
+        params.chase_sma_points,
+        params.chase_sma_cap,
+    )
 }
 
 fn stepped(over: f64, step: f64, points: f64, cap: f64) -> f64 {

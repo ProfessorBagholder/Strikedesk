@@ -154,6 +154,34 @@ fn synthesize(recipe: &str, drift: Option<f64>) -> Result<Vec<Bar>, DataError> {
                 gap: None,
             },
         ],
+        // Larger-float parabola: a liquid shelf, then a month-long climb that
+        // rides the short average and finishes stretched above SMA(20).
+        "parabolic" => vec![
+            Seg {
+                len: 180,
+                daily: 0.00035,
+                range: 0.018,
+                pos: 0.55,
+                vol: 8_000_000.0,
+                gap: None,
+            },
+            Seg {
+                len: 12,
+                daily: 0.0,
+                range: 0.028,
+                pos: 0.5,
+                vol: 6_000_000.0,
+                gap: None,
+            },
+            Seg {
+                len: 26,
+                daily: 0.012,
+                range: 0.032,
+                pos: 0.74,
+                vol: 9_000_000.0,
+                gap: None,
+            },
+        ],
         "fresh_pivot" => vec![
             Seg {
                 len: 180,

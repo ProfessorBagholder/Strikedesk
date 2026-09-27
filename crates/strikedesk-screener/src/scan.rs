@@ -438,6 +438,37 @@ mod tests {
             qmco_dock <= -15.0,
             "QMCO should be docked as a late chase ({qmco_dock})\n{dump}"
         );
+        let swks = report
+            .rows
+            .iter()
+            .find(|row| row.symbol == "SWKS")
+            .expect("SWKS");
+        let swks_rank = report
+            .rows
+            .iter()
+            .position(|row| row.symbol == "SWKS")
+            .expect("SWKS rank");
+        let swks_dock = swks
+            .strike_parts
+            .iter()
+            .find(|part| part.id == "chase")
+            .map(|part| part.points)
+            .unwrap_or(0.0);
+        assert!(
+            swks_dock <= -15.0,
+            "SWKS parabolic extension should be docked ({swks_dock})\n{dump}"
+        );
+        assert!(
+            fresh.strike > swks.strike,
+            "fresh pivot ARM ({}) must outrank parabolic SWKS ({})\n{dump}",
+            fresh.strike,
+            swks.strike
+        );
+        assert!(
+            swks_rank >= 4,
+            "SWKS rank {swks_rank} strike {} is still near the top\n{dump}",
+            swks.strike
+        );
         for code in [
             "KQ", "MM", "ON", "DB", "SB4", "SBW", "SB9", "TML", "97C", "52W", "ER", "2A", "2B",
             "2C", "RS",

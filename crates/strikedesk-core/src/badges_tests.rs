@@ -317,6 +317,42 @@ fn fresh_pivot_outranks_a_similar_late_chase() {
     );
 }
 
+#[test]
+fn fresh_pivot_outranks_a_parabolic_extension() {
+    let fresh = run(&shelf_then(&[(1, 0.03, 0.028, 0.97, 3_200_000.0)]), 92);
+    let mut parabolic = Path::new(60.0);
+    parabolic
+        .add(160, 0.0004, 0.018, 0.55, 8_000_000.0, None)
+        .add(12, 0.0, 0.025, 0.5, 6_000_000.0, None)
+        .add(26, 0.012, 0.032, 0.74, 9_000_000.0, None);
+    let chase = run(parabolic.done(), 92);
+    let sma_ext = chase.last / chase.metrics.sma20.expect("sma20") - 1.0;
+    assert!(
+        sma_ext > 0.06,
+        "parabolic close should be stretched above SMA(20), got {sma_ext}"
+    );
+    assert!(
+        chase.metrics.month_pct.unwrap_or(0.0) > 0.18,
+        "21-session return should be parabolic, got {:?}",
+        chase.metrics.month_pct
+    );
+    assert!(
+        chase.avg_dollar_volume.unwrap_or(0.0) > 20_000_000.0,
+        "larger-float path should stay liquid"
+    );
+    let chase_dock = part_points(&chase, "chase");
+    assert!(
+        chase_dock <= -20.0,
+        "SMA(20) stretch after a large advance must dock, got {chase_dock}"
+    );
+    assert!(
+        fresh.strike >= chase.strike + 10,
+        "fresh {} parabolic {} dock {chase_dock} sma_ext {sma_ext}",
+        fresh.strike,
+        chase.strike
+    );
+}
+
 fn part_points(eval: &Evaluation, id: &str) -> f64 {
     eval.strike_parts
         .iter()

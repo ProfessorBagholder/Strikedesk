@@ -93,6 +93,13 @@ symbol = "SWKS"
 name = "SWKS"
 exchange = "NASDAQ"
 market_cap = 13400000000
+recipe = "parabolic"
+
+[[symbols]]
+symbol = "SLAB"
+name = "SLAB"
+exchange = "NASDAQ"
+market_cap = 5200000000
 recipe = "tight_flag"
 
 [[symbols]]
