@@ -423,6 +423,66 @@ fn d_loc_wide() -> f64 {
 fn d_extension() -> f64 {
     0.12
 }
+fn d_pivot_base_bars() -> usize {
+    10
+}
+fn d_pivot_base_max_range() -> f64 {
+    0.15
+}
+fn d_pivot_base_max_drift() -> f64 {
+    0.06
+}
+fn d_pivot_lookback() -> usize {
+    63
+}
+fn d_chase_max_extension() -> f64 {
+    0.05
+}
+fn d_chase_fresh_bars() -> usize {
+    2
+}
+fn d_chase_atr_bars() -> usize {
+    14
+}
+fn d_chase_atr_limit() -> f64 {
+    1.0
+}
+fn d_chase_dock_cap() -> f64 {
+    36.0
+}
+fn d_chase_dist_step() -> f64 {
+    0.10
+}
+fn d_chase_dist_points() -> f64 {
+    8.0
+}
+fn d_chase_dist_cap() -> f64 {
+    20.0
+}
+fn d_chase_atr_points() -> f64 {
+    4.0
+}
+fn d_chase_atr_cap() -> f64 {
+    12.0
+}
+fn d_chase_age_points() -> f64 {
+    3.0
+}
+fn d_chase_age_cap() -> f64 {
+    16.0
+}
+fn d_chase_fresh_pad() -> f64 {
+    0.03
+}
+fn d_chase_ema_step() -> f64 {
+    0.10
+}
+fn d_chase_ema_points() -> f64 {
+    8.0
+}
+fn d_chase_ema_cap() -> f64 {
+    16.0
+}
 fn d_sbw_max_above() -> f64 {
     0.06
 }
@@ -510,6 +570,54 @@ pub struct BadgeParams {
     pub sbw_max_above: f64,
     #[serde(default = "d_sbw_max_drawdown")]
     pub sbw_max_drawdown: f64,
+    /// Sessions in the shelf that must break before a pivot exists.
+    #[serde(default = "d_pivot_base_bars")]
+    pub pivot_base_bars: usize,
+    /// Shelf high-to-low range, as a fraction of the shelf high.
+    #[serde(default = "d_pivot_base_max_range")]
+    pub pivot_base_max_range: f64,
+    /// Absolute close-to-close drift allowed inside that shelf.
+    #[serde(default = "d_pivot_base_max_drift")]
+    pub pivot_base_max_drift: f64,
+    /// How far back a shelf break still counts as the active pivot.
+    #[serde(default = "d_pivot_lookback")]
+    pub pivot_lookback: usize,
+    /// Close within this fraction of the pivot is still a break or retest.
+    #[serde(default = "d_chase_max_extension")]
+    pub chase_max_extension: f64,
+    /// Breakout bar plus this many later sessions still count as the print.
+    #[serde(default = "d_chase_fresh_bars")]
+    pub chase_fresh_bars: usize,
+    #[serde(default = "d_chase_atr_bars")]
+    pub chase_atr_bars: usize,
+    /// ATRs above EMA(10) allowed before the short-average dock starts.
+    #[serde(default = "d_chase_atr_limit")]
+    pub chase_atr_limit: f64,
+    #[serde(default = "d_chase_dock_cap")]
+    pub chase_dock_cap: f64,
+    #[serde(default = "d_chase_dist_step")]
+    pub chase_dist_step: f64,
+    #[serde(default = "d_chase_dist_points")]
+    pub chase_dist_points: f64,
+    #[serde(default = "d_chase_dist_cap")]
+    pub chase_dist_cap: f64,
+    #[serde(default = "d_chase_atr_points")]
+    pub chase_atr_points: f64,
+    #[serde(default = "d_chase_atr_cap")]
+    pub chase_atr_cap: f64,
+    #[serde(default = "d_chase_age_points")]
+    pub chase_age_points: f64,
+    #[serde(default = "d_chase_age_cap")]
+    pub chase_age_cap: f64,
+    /// Extra room past `chase_max_extension` that still waives the ATR dock.
+    #[serde(default = "d_chase_fresh_pad")]
+    pub chase_fresh_pad: f64,
+    #[serde(default = "d_chase_ema_step")]
+    pub chase_ema_step: f64,
+    #[serde(default = "d_chase_ema_points")]
+    pub chase_ema_points: f64,
+    #[serde(default = "d_chase_ema_cap")]
+    pub chase_ema_cap: f64,
     #[serde(default)]
     pub rs: RsWeights,
     #[serde(default)]
@@ -557,6 +665,26 @@ impl Default for BadgeParams {
             mm_slope_bars: d_mm_slope_bars(),
             sbw_max_above: d_sbw_max_above(),
             sbw_max_drawdown: d_sbw_max_drawdown(),
+            pivot_base_bars: d_pivot_base_bars(),
+            pivot_base_max_range: d_pivot_base_max_range(),
+            pivot_base_max_drift: d_pivot_base_max_drift(),
+            pivot_lookback: d_pivot_lookback(),
+            chase_max_extension: d_chase_max_extension(),
+            chase_fresh_bars: d_chase_fresh_bars(),
+            chase_atr_bars: d_chase_atr_bars(),
+            chase_atr_limit: d_chase_atr_limit(),
+            chase_dock_cap: d_chase_dock_cap(),
+            chase_dist_step: d_chase_dist_step(),
+            chase_dist_points: d_chase_dist_points(),
+            chase_dist_cap: d_chase_dist_cap(),
+            chase_atr_points: d_chase_atr_points(),
+            chase_atr_cap: d_chase_atr_cap(),
+            chase_age_points: d_chase_age_points(),
+            chase_age_cap: d_chase_age_cap(),
+            chase_fresh_pad: d_chase_fresh_pad(),
+            chase_ema_step: d_chase_ema_step(),
+            chase_ema_points: d_chase_ema_points(),
+            chase_ema_cap: d_chase_ema_cap(),
             rs: RsWeights::default(),
             strike: StrikeWeights::default(),
         }

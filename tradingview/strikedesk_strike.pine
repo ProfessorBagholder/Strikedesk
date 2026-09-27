@@ -36,7 +36,41 @@ closePts = (closePos >= 0.97 ? 5.0 : closePos >= 0.70 ? 3.0 : 0.0) + (relVol >= 
 closePts := math.min(closePts, 10.0)
 adrPts = adr >= 0.035 and adr <= 0.08 ? 10.0 : (adr >= 0.025 and adr < 0.035) or (adr > 0.08 and adr <= 0.12) ? 6.0 : (adr >= 0.015 and adr < 0.025) or (adr > 0.12 and adr <= 0.18) ? 3.0 : 0.0
 liqPts = dollars >= 20000000 ? 10.0 : dollars >= 5000000 ? 7.0 : dollars >= 1000000 ? 4.0 : 0.0
-strike = math.round(math.max(0.0, math.min(100.0, maPts + rsPts + locPts + tightPts + closePts + adrPts + liqPts)))
+
+// Late-chase dock. Same approximation as the desk: a sideways 10-bar shelf,
+// then distance above that pivot and sessions since the close cleared it.
+// Buying the break or a tight retest is not docked. This does not place orders.
+float chasePivot = na
+int chaseAge = na
+if bar_index > 11
+    for i = 0 to 62
+        if na(chasePivot) and bar_index > i + 10
+            float hi = high[i + 1]
+            float lo = low[i + 1]
+            for j = 2 to 10
+                float h = high[i + j]
+                float l = low[i + j]
+                if not na(h)
+                    hi := math.max(hi, h)
+                if not na(l)
+                    lo := math.min(lo, l)
+            float baseClose = close[i + 10]
+            float drift = not na(baseClose) and baseClose > 0 ? math.abs(close[i + 1] / baseClose - 1.0) : 1.0
+            float width = not na(hi) and hi > 0 ? (hi - lo) / hi : 1.0
+            if width <= 0.15 and drift <= 0.06 and close[i] > hi
+                chasePivot := hi
+                chaseAge := i
+atr14 = ta.sma(high - low, 14)
+float ext = chasePivot > 0 ? close / chasePivot - 1.0 : na
+float atrExt = ema10 > 0 and atr14 > 0 and close > ema10 ? (close - ema10) / atr14 : 0.0
+float distDock = not na(ext) ? math.min(20.0, math.max(0.0, ext - 0.05) / 0.10 * 8.0) : 0.0
+float ageDock = not na(ext) and ext > 0.05 and not na(chaseAge) ? math.min(16.0, math.max(0, chaseAge - 2) * 3.0) : 0.0
+bool freshBreak = not na(ext) and ext <= 0.08 and not na(chaseAge) and chaseAge <= 2
+float atrDock = freshBreak ? 0.0 : math.min(12.0, math.max(0.0, atrExt - 1.0) * 4.0)
+float emaExt = ema10 > 0 ? close / ema10 - 1.0 : 0.0
+float emaDock = na(chasePivot) ? math.min(16.0, math.max(0.0, emaExt - 0.05) / 0.10 * 8.0) : 0.0
+float chaseDock = math.min(36.0, distDock + ageDock + atrDock + emaDock)
+strike = math.round(math.max(0.0, math.min(100.0, maPts + rsPts + locPts + tightPts + closePts + adrPts + liqPts - chaseDock)))
 
 tone = strike >= 70 ? color.lime : strike >= 50 ? color.yellow : color.red
 plot(strike, "Strike", color=tone, linewidth=2)

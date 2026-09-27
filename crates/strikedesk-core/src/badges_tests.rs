@@ -251,6 +251,80 @@ fn relative_strength_ranks_the_faster_name_higher() {
     assert!(hot.rs >= params.rs_hot);
 }
 
+fn shelf_then(extra: &[(usize, f64, f64, f64, f64)]) -> Vec<Bar> {
+    let mut path = Path::new(20.0);
+    path.add(180, 0.0016, 0.028, 0.62, 1_800_000.0, None).add(
+        12,
+        0.0,
+        0.03,
+        0.5,
+        1_200_000.0,
+        None,
+    );
+    for (n, daily, range, pos, vol) in extra {
+        path.add(*n, *daily, *range, *pos, *vol, None);
+    }
+    path.done().to_vec()
+}
+
+#[test]
+fn fresh_pivot_outranks_a_similar_late_chase() {
+    let fresh = run(&shelf_then(&[(1, 0.03, 0.028, 0.97, 3_200_000.0)]), 92);
+    let chase = run(
+        &shelf_then(&[
+            (4, 0.045, 0.04, 0.85, 2_800_000.0),
+            (9, 0.0, 0.02, 0.92, 1_600_000.0),
+        ]),
+        92,
+    );
+    let fresh_dock = part_points(&fresh, "chase");
+    let chase_dock = part_points(&chase, "chase");
+    assert!(
+        fresh.metrics.bars_since_breakout.unwrap_or(99) <= 2,
+        "fresh break should still be the print, got {:?}",
+        fresh.metrics.bars_since_breakout
+    );
+    assert!(
+        fresh.metrics.pivot_extension.unwrap_or(1.0) < 0.05,
+        "fresh close should still be inside 5% of the pivot, got {:?}",
+        fresh.metrics.pivot_extension
+    );
+    assert!(
+        chase.metrics.bars_since_breakout.unwrap_or(0) >= 8,
+        "chase breakout should already be stale, got {:?}",
+        chase.metrics.bars_since_breakout
+    );
+    assert!(
+        chase.metrics.pivot_extension.unwrap_or(0.0) > 0.10,
+        "chase close should be well through the pivot, got {:?}",
+        chase.metrics.pivot_extension
+    );
+    assert!(
+        fresh_dock > -1.0,
+        "a close still at the pivot is not a chase ({fresh_dock})"
+    );
+    assert!(
+        chase_dock <= -15.0,
+        "running past the shelf must dock strike, got {chase_dock}"
+    );
+    assert!(
+        fresh.strike >= chase.strike + 10,
+        "fresh strike {} chase {} docks {} / {}",
+        fresh.strike,
+        chase.strike,
+        fresh_dock,
+        chase_dock
+    );
+}
+
+fn part_points(eval: &Evaluation, id: &str) -> f64 {
+    eval.strike_parts
+        .iter()
+        .find(|part| part.id == id)
+        .map(|part| part.points)
+        .unwrap_or(0.0)
+}
+
 #[test]
 fn strike_stays_in_range_and_prefers_a_coiled_leader_over_chop() {
     let mut leader = Path::new(18.0);
@@ -298,6 +372,8 @@ fn partial_params_keep_the_documented_defaults() {
     let empty: BadgeParams = serde_json::from_str("{}").unwrap();
     assert!((empty.min_adr - BadgeParams::default().min_adr).abs() < 1e-12);
     assert!((empty.sbw_max_above - 0.06).abs() < 1e-12);
+    assert!((empty.chase_max_extension - 0.05).abs() < 1e-12);
+    assert_eq!(empty.chase_fresh_bars, 2);
 }
 
 #[test]

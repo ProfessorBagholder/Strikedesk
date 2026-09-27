@@ -16,7 +16,7 @@ cargo run -p strikedesk-api
 cd web && npm install && npm run dev
 ```
 
-Open http://127.0.0.1:5173. The API listens on http://127.0.0.1:8787. The dev server proxies `/api`.
+Open http://127.0.0.1:5173. The API listens on http://127.0.0.1:8790. The dev server proxies `/api`.
 
 Fixtures are the default and need no network. Switch the desk to **Yahoo** for cached daily bars of the same symbol list.
 
@@ -25,7 +25,7 @@ cargo test --workspace
 cd web && npm run check && npm run build
 ```
 
-After `npm run build`, `cargo run -p strikedesk-api` also serves the built UI at http://127.0.0.1:8787.
+After `npm run build`, `cargo run -p strikedesk-api` also serves the built UI at http://127.0.0.1:8790.
 
 Optional environment variables are listed in `.env.example`. Do not commit a real `.env`.
 
@@ -92,11 +92,23 @@ Moving averages are simple unless named EMA. ADR is the 20-session mean of `(hig
 
 The circle is green at ≥ 70, gold at ≥ 50, and red below 50.
 
+**Late chase — subtracted, then clamped (approximation).** The books buy the break of a base, or a tight retest of that pivot. They do not buy a close that has already run through the shelf. A base is 10 sessions whose high–low range is at most 15% of the high and whose close-to-close drift is at most 6%. The pivot is that shelf’s high. The active pivot is the most recent such shelf in the last 63 sessions whose next close clears it. A later thrust does not mint a new pivot unless those prior sessions are themselves a base.
+
+Three docks, summed and capped at 36:
+
+| Dock | When it is zero | Otherwise |
+| --- | --- | --- |
+| Distance | Close is within 5% of the pivot | 8 points per extra 10% above that band, cap 20 |
+| Age | The break printed within the last 2 sessions, or the close is back inside 5% (a retest) | 3 points per session after those 2, cap 16 |
+| ATR | Close is within 1 ATR(14) of EMA(10), or the break is still fresh: ≤ 2 sessions and within 8% of the pivot | 4 points per extra ATR above EMA(10), cap 12 |
+
+If no shelf break is found, distance and age are skipped and an EMA(10) dock is used instead: 8 points per 10% beyond 5% above EMA(10), cap 16, still inside the 36-point cap. A QMCO-like path — shelf, then a multi-session run into an extended close with a long upper wick — takes this dock. A name that is still within 5% of a pivot that broke in the last 2 sessions does not.
+
 ## TradingView
 
 - **Open in TradingView** on a row uses `https://www.tradingview.com/chart/?symbol=EXCHANGE:SYMBOL&interval=D`.
 - **Copy Pine** copies `tradingview/strikedesk_badges.pine`. The strike study is `tradingview/strikedesk_strike.pine`. Both are served at `/api/tv/pine/badges` and `/api/tv/pine/strike`.
-- Point a TradingView alert at `http://127.0.0.1:8787/api/tv/webhook` with a JSON message. If `STRIKEDESK_WEBHOOK_TOKEN` is set, send it as `X-Strikedesk-Token`. The Pine scripts already emit JSON. Keep this listener on localhost.
+- Point a TradingView alert at `http://127.0.0.1:8790/api/tv/webhook` with a JSON message. If `STRIKEDESK_WEBHOOK_TOKEN` is set, send it as `X-Strikedesk-Token`. The Pine scripts already emit JSON. Keep this listener on localhost.
 
 The Pine RS figure is a single-symbol excess-return proxy. The square on the desk is the cross-sectional percentile. Both files say so.
 

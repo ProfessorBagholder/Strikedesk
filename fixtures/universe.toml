@@ -17,6 +17,20 @@ market_cap = 1200000000
 recipe = "leader_box"
 
 [[symbols]]
+symbol = "ARM"
+name = "ARM"
+exchange = "NASDAQ"
+market_cap = 160000000000
+recipe = "fresh_pivot"
+
+[[symbols]]
+symbol = "COHR"
+name = "COHR"
+exchange = "NYSE"
+market_cap = 14000000000
+recipe = "kq_coil"
+
+[[symbols]]
 symbol = "MRNA"
 name = "MRNA"
 exchange = "NASDAQ"

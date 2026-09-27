@@ -85,6 +85,9 @@ pub struct MetricDto {
     pub sma200: Option<f64>,
     pub ema10: Option<f64>,
     pub ema20: Option<f64>,
+    pub pivot: Option<f64>,
+    pub bars_since_breakout: Option<usize>,
+    pub pivot_extension_pct: Option<f64>,
 }
 
 struct PreparedSymbol {
@@ -238,6 +241,12 @@ pub async fn scan(
                 sma200: evaluation.metrics.sma200,
                 ema10: evaluation.metrics.ema10,
                 ema20: evaluation.metrics.ema20,
+                pivot: evaluation.metrics.pivot.map(round2),
+                bars_since_breakout: evaluation.metrics.bars_since_breakout,
+                pivot_extension_pct: evaluation
+                    .metrics
+                    .pivot_extension
+                    .map(|value| round1(value * 100.0)),
             },
         };
         if row_matches(&scan_row, &preset) {
@@ -388,6 +397,47 @@ mod tests {
             ));
         }
         let dump = lines.join("\n");
+        let qmco = report
+            .rows
+            .iter()
+            .find(|row| row.symbol == "QMCO")
+            .expect("QMCO");
+        let fresh = report
+            .rows
+            .iter()
+            .find(|row| row.symbol == "ARM")
+            .expect("ARM");
+        assert!(
+            fresh.strike > qmco.strike,
+            "fresh pivot ARM ({}) must outrank late chase QMCO ({})\n{dump}",
+            fresh.strike,
+            qmco.strike
+        );
+        assert_ne!(
+            report.rows[0].symbol, "QMCO",
+            "late chase ranked first\n{dump}"
+        );
+        let top_dock = report.rows[0]
+            .strike_parts
+            .iter()
+            .find(|part| part.id == "chase")
+            .map(|part| part.points)
+            .unwrap_or(0.0);
+        assert!(
+            top_dock > -8.0,
+            "top {} is still a late chase ({top_dock})\n{dump}",
+            report.rows[0].symbol
+        );
+        let qmco_dock = qmco
+            .strike_parts
+            .iter()
+            .find(|part| part.id == "chase")
+            .map(|part| part.points)
+            .unwrap_or(0.0);
+        assert!(
+            qmco_dock <= -15.0,
+            "QMCO should be docked as a late chase ({qmco_dock})\n{dump}"
+        );
         for code in [
             "KQ", "MM", "ON", "DB", "SB4", "SBW", "SB9", "TML", "97C", "52W", "ER", "2A", "2B",
             "2C", "RS",

@@ -18,6 +18,12 @@ pub struct Metrics {
     pub adr_pct: Option<f64>,
     pub avg_dollar_volume: Option<f64>,
     pub month_pct: Option<f64>,
+    /// High of the shelf the active breakout cleared.
+    pub pivot: Option<f64>,
+    /// Sessions since that breakout bar. Zero means the breakout is the last bar.
+    pub bars_since_breakout: Option<usize>,
+    /// Close / pivot − 1. Positive means the close is above the shelf.
+    pub pivot_extension: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -637,6 +643,7 @@ fn strike_score(prepared: &Prepared, rs: u8, params: &BadgeParams) -> (u8, Vec<S
     let close_vol = part_close_volume(prepared, &w);
     let adr_pts = part_adr(prepared, &w);
     let liq = part_liquidity(prepared, &w);
+    let dock = chase_penalty(prepared, params).0;
     let parts = vec![
         part("ma", "Moving-average stack", ma, w.ma),
         part("rs", "Relative strength", rs_pts, w.rs),
@@ -645,6 +652,12 @@ fn strike_score(prepared: &Prepared, rs: u8, params: &BadgeParams) -> (u8, Vec<S
         part("close", "Close and volume", close_vol, w.close_volume),
         part("adr", "ADR band", adr_pts, w.adr),
         part("liq", "Liquidity", liq, w.liquidity),
+        StrikePart {
+            id: "chase".to_string(),
+            label: "Late chase".to_string(),
+            points: if dock > 0.0 { -dock } else { 0.0 },
+            max: params.chase_dock_cap,
+        },
     ];
     let sum: f64 = parts.iter().map(|p| p.points).sum();
     let score = sum.round().clamp(0.0, 100.0) as u8;
@@ -782,6 +795,7 @@ fn metrics_of(prepared: &Prepared, params: &BadgeParams) -> Metrics {
     let ema10 = series_last(&prepared.ema10);
     let high = rolling_high(&prepared.bars, 252);
     let sma150 = series_last(&prepared.sma150);
+    let pivot = latest_pivot(&prepared.bars, params);
     Metrics {
         sma10: series_last(&prepared.sma10),
         sma20: series_last(&prepared.sma20),
@@ -807,7 +821,141 @@ fn metrics_of(prepared: &Prepared, params: &BadgeParams) -> Metrics {
         adr_pct: adr(&prepared.bars, 20),
         avg_dollar_volume: avg_dollar_volume(&prepared.bars, 20),
         month_pct: window_return(&prepared.bars, 21),
+        pivot: pivot.as_ref().map(|breakout| breakout.pivot),
+        bars_since_breakout: pivot.as_ref().map(|breakout| breakout.bars_since),
+        pivot_extension: pivot.as_ref().map(|breakout| breakout.extension),
     }
+}
+
+struct PivotBreak {
+    pivot: f64,
+    bars_since: usize,
+    extension: f64,
+}
+
+/// Most recent close that cleared a sideways shelf inside the lookback.
+///
+/// A thrust that keeps making highs does not mint a new pivot: the prior
+/// window has to be a base (limited range and limited drift). The buy is that
+/// break, or a close that is still within the extension band. A tight pause
+/// that never clears a new shelf leaves the earlier pivot in force.
+fn latest_pivot(bars: &[Bar], params: &BadgeParams) -> Option<PivotBreak> {
+    let n = bars.len();
+    let base = params.pivot_base_bars;
+    if base < 2 || n <= base {
+        return None;
+    }
+    let earliest = n.saturating_sub(params.pivot_lookback.max(1)).max(base);
+    for i in (earliest..n).rev() {
+        let window = &bars[i - base..i];
+        let mut shelf_high = f64::MIN;
+        let mut shelf_low = f64::MAX;
+        for bar in window {
+            shelf_high = shelf_high.max(bar.high);
+            shelf_low = shelf_low.min(bar.low);
+        }
+        if !(shelf_high.is_finite() && shelf_high > 0.0 && shelf_low.is_finite()) {
+            continue;
+        }
+        let width = (shelf_high - shelf_low) / shelf_high;
+        let first = window[0].close;
+        let last = window[window.len() - 1].close;
+        if first <= 0.0 || last <= 0.0 {
+            continue;
+        }
+        let drift = (last / first - 1.0).abs();
+        if width <= params.pivot_base_max_range
+            && drift <= params.pivot_base_max_drift
+            && bars[i].close > shelf_high
+        {
+            let close = bars[n - 1].close;
+            return Some(PivotBreak {
+                pivot: shelf_high,
+                bars_since: n - 1 - i,
+                extension: close / shelf_high - 1.0,
+            });
+        }
+    }
+    None
+}
+
+fn chase_penalty(prepared: &Prepared, params: &BadgeParams) -> (f64, Option<PivotBreak>) {
+    let pivot = latest_pivot(&prepared.bars, params);
+    let close = prepared.last;
+    let atr = average_range(&prepared.bars, params.chase_atr_bars);
+    let ema10 = series_last(&prepared.ema10);
+    let atr_ext = match (ema10, atr) {
+        (Some(ema), Some(range)) if range > 0.0 && close > ema => (close - ema) / range,
+        _ => 0.0,
+    };
+    let near_fresh = pivot.as_ref().is_some_and(|breakout| {
+        breakout.bars_since <= params.chase_fresh_bars
+            && breakout.extension <= params.chase_max_extension + params.chase_fresh_pad
+    });
+    let atr_dock = if near_fresh {
+        0.0
+    } else {
+        stepped(
+            (atr_ext - params.chase_atr_limit).max(0.0),
+            1.0,
+            params.chase_atr_points,
+            params.chase_atr_cap,
+        )
+    };
+    let (dist_dock, age_dock, ema_dock) = if let Some(breakout) = &pivot {
+        let dist_dock = stepped(
+            (breakout.extension - params.chase_max_extension).max(0.0),
+            params.chase_dist_step,
+            params.chase_dist_points,
+            params.chase_dist_cap,
+        );
+        let age_dock = if breakout.extension > params.chase_max_extension {
+            let extra = breakout.bars_since.saturating_sub(params.chase_fresh_bars) as f64;
+            (extra * params.chase_age_points).clamp(0.0, params.chase_age_cap.max(0.0))
+        } else {
+            0.0
+        };
+        (dist_dock, age_dock, 0.0)
+    } else {
+        let ema_ext = ema10
+            .filter(|ema| *ema > 0.0)
+            .map(|ema| close / ema - 1.0)
+            .unwrap_or(0.0);
+        let ema_dock = stepped(
+            (ema_ext - params.chase_max_extension).max(0.0),
+            params.chase_ema_step,
+            params.chase_ema_points,
+            params.chase_ema_cap,
+        );
+        (0.0, 0.0, ema_dock)
+    };
+    let dock =
+        (dist_dock + atr_dock + age_dock + ema_dock).clamp(0.0, params.chase_dock_cap.max(0.0));
+    (dock, pivot)
+}
+
+fn stepped(over: f64, step: f64, points: f64, cap: f64) -> f64 {
+    if step <= 0.0 || points <= 0.0 || over <= 0.0 {
+        0.0
+    } else {
+        (over / step * points).clamp(0.0, cap.max(0.0))
+    }
+}
+
+fn average_range(bars: &[Bar], n: usize) -> Option<f64> {
+    if bars.len() < n || n == 0 {
+        return None;
+    }
+    let mut sum = 0.0;
+    for bar in &bars[bars.len() - n..] {
+        let span = bar.high - bar.low;
+        if !span.is_finite() || span < 0.0 {
+            return None;
+        }
+        sum += span;
+    }
+    let value = sum / n as f64;
+    (value > 0.0).then_some(value)
 }
 
 fn coil(close: f64, ema10: Option<f64>, ema20: Option<f64>, pct: f64) -> bool {

@@ -36,6 +36,9 @@ export interface Metrics {
   sma200: number | null;
   ema10: number | null;
   ema20: number | null;
+  pivot: number | null;
+  bars_since_breakout: number | null;
+  pivot_extension_pct: number | null;
 }
 
 export interface ScanRow {

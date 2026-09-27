@@ -1,6 +1,6 @@
 <script lang="ts">
   import { marketCap, plainPct, price, signedPct } from "$lib/format";
-  import type { RuleDoc, ScanReport, ScanRow, StoredAlert, Tone } from "$lib/types";
+  import type { RuleDoc, ScanReport, ScanRow, StoredAlert, StrikePart, Tone } from "$lib/types";
 
   const FILTERS = ["KQ", "MM", "ON", "DB", "SB4", "SBW", "SB9", "TML", "97C", "52W", "ER", "RS", "2A", "2B", "2C"];
   const TONE: Record<string, Tone> = {
@@ -36,6 +36,28 @@
 
   function toneClass(tone: string): string {
     return `t-${tone}`;
+  }
+
+  function partWidth(part: StrikePart): number {
+    if (part.points < 0) {
+      const cap = part.max > 0 ? part.max : 36;
+      return Math.min(100, (Math.abs(part.points) / cap) * 100);
+    }
+    if (!part.max || part.max <= 0) return 0;
+    return Math.min(100, Math.max(0, (part.points / part.max) * 100));
+  }
+
+  function partText(part: StrikePart): string {
+    if (part.id === "chase") return part.points === 0 ? "0" : part.points.toFixed(0);
+    return `${part.points.toFixed(0)}/${part.max.toFixed(0)}`;
+  }
+
+  function pivotText(row: ScanRow): string {
+    const ext = row.metrics.pivot_extension_pct;
+    const bars = row.metrics.bars_since_breakout;
+    if (ext == null || bars == null) return "—";
+    const day = bars === 1 ? "1 day" : `${bars} days`;
+    return `${signedPct(ext)} · ${day}`;
   }
 
   function side(value: number): "up" | "down" | "flat" {
@@ -235,6 +257,7 @@
               <span>vs 252-high {signedPct(row.metrics.dist_year_high_pct)}</span>
               <span>Prior move {signedPct(row.metrics.prior_move_pct)}</span>
               <span>Stage advance {signedPct(row.metrics.stage_advance_pct)}</span>
+              <span>vs pivot {pivotText(row)}</span>
             </div>
             <div class="actions">
               <a href={row.tv_url} target="_blank" rel="noreferrer">Open in TradingView</a>
@@ -245,8 +268,8 @@
               {#each row.strike_parts as part (part.id)}
                 <div class="part">
                   <span>{part.label}</span>
-                  <div class="bar"><span style="width: {part.max ? (part.points / part.max) * 100 : 0}%"></span></div>
-                  <span>{part.points.toFixed(0)}/{part.max.toFixed(0)}</span>
+                  <div class="bar"><span class:dock={part.points < 0} style="width: {partWidth(part)}%"></span></div>
+                  <span>{partText(part)}</span>
                 </div>
               {/each}
             </div>

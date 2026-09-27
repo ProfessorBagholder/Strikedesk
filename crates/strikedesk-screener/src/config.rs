@@ -87,7 +87,7 @@ fn default_host() -> String {
     "127.0.0.1".into()
 }
 fn default_port() -> u16 {
-    8787
+    8790
 }
 fn default_source() -> String {
     "fixtures".into()
@@ -175,7 +175,7 @@ mod tests {
     fn shipped_config_uses_engine_defaults() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/screener.toml");
         let config = load_config(&path).unwrap();
-        assert_eq!(config.server.port, 8787);
+        assert_eq!(config.server.port, 8790);
         assert_eq!(config.data.source, "fixtures");
         assert_eq!(config.badges, BadgeParams::default());
         assert!(config
